@@ -1,128 +1,144 @@
 # POODLE Attack PoC (SSL 3.0 Protocol)
 
-<p>U/C</p>
+> **Status:** U/C (under construction)
 
 ## About
-<div align="justify">
-  <p>
-  
-  This is a Group Project for the course **SC4010 Applied Cryptography** conducted by Nanyang Technological University's College of Computing and Data Science. 
-  </p>
-  <p>
-    
-  This is a **Proof-of-Concept (PoC) demonstration** of the actual Padding Oracle on Downgraded Legacy Encryption (POODLE) attack conducted in 2014, targeting the **CVE-2014-3566** vulnerability found in client-server connections that used the **Secure Socket Layer version 3 (SSL 3.0)** protocol, which was first implemented in 1996 and deprecated in 2015. 
-  </p>
 
-**DISCLAIMER:** This PoC demonstration is solely for the purposes of learning Cryptography and particularly, the POODLE attack on SSL 3.0 protocol, and should strictly not be used, in full or part-thereof, for any malicious or unauthorised intentions, in any form.
-</div>
+This is a Group Project for **SC4010 — Applied Cryptography** at Nanyang Technological University (College of Computing and Data Science).
+
+This repository contains a **Proof-of-Concept (PoC)** demonstration of the 2014 **Padding Oracle On Downgraded Legacy Encryption (POODLE)** attack (**CVE-2014-3566**) against **SSL 3.0**. The goal is to make the attack mechanics tangible in a safe, didactic setting.
+
+> **DISCLAIMER**
+> This PoC is for education and research only. Do not use it to attack systems you do not own or have explicit permission to test.
+
+---
+
+## How the Demo Works (High-Level)
+
+* **Roles**
+
+  * **Alice** (client) registers with a username & password.
+  * **Server** receives ciphertext, performs decryption, padding removal, and HMAC verification.
+  * **Eve** (attacker) observes traffic and uses a **padding oracle** to recover plaintext.
+
+* **Crypto model (teaching-friendly)**
+
+  * Simulated **CBC** mode: `P_i = Dec_k(C_i) ⊕ C_{i-1}`.
+  * We append an **HMAC** to the plaintext and then apply **PKCS#7 padding** before “encryption.”
+  * The block cipher is represented by an **XOR stub** so the algebra is visible (for learning only).
+
+* **Padding-oracle signal**
+
+  * `server_check_padding` returns **True** only if the last *N* bytes of candidate plaintext equal the value *N* (valid PKCS#7).
+  * This single-bit signal (valid/invalid) lets Eve solve each plaintext byte, right → left, by tweaking bytes in the **previous** ciphertext block.
+
+* **POODLE loop**
+
+  1. Split `IV || C1 || C2 || … || Cn` and work **backwards** from `Cn` to `C1`.
+  2. For each target block `Ci`, brute-force one byte of `C'_{i-1}` until the oracle validates the desired padding.
+  3. Use CBC algebra to recover the real plaintext byte; lock solved bytes to enforce the next padding value (`0x01`, then `0x02 0x02`, …).
+  4. Repeat for all bytes/blocks → reconstruct full plaintext → **unpad & verify HMAC**.
+
+> **Mitigations (real systems):** Disable SSLv3; use TLS 1.2/1.3 with AEAD (GCM/ChaCha20-Poly1305); ensure uniform error handling to avoid padding-based side-channels.
+
+---
 
 ## Getting Started
 
 ### Prerequisites
-<div align="justify">
-  <p>
-  Before running the simulation, you will need to have the following installed on your computer:
-      
-  - Your preferred **Python** IDE (for this project, our group used <a href="https://code.visualstudio.com/download">VSCode IDE</a>)
-  - Python packages as listed in `requirements.txt`, by running the following command:
+
+* **Python 3.10–3.12**
+* (Recommended) Virtual environment:
+
+  ```bash
+  python -m venv .venv
+  # macOS/Linux
+  source .venv/bin/activate
+  # Windows PowerShell
+  .venv\Scripts\Activate.ps1
   ```
+* Install dependencies:
+
+  ```bash
   pip install -r requirements.txt
+  # use pip3 if needed
   ```
-  *Note: For the newest Python 3.12 version, pip is not supported. Use **pip3** or **pip3.12** instead.
-  - Built-in Python modules: **`hmac.py`** and **`hashlib.py`**
-  </p>
-  
-  Fork this repo for your own convenience. :-)
-</div>
 
-### Start Attack Simulation
-<div align="justify">
-  <p>
-    
-  1. To simulate the POODLE attack, run the following command:
-  
-     ```
-     streamlit run page_controller.py
-     ```
-     This will spawn the simulated account registration website running on http://localhost:8501.
-      
-     ![image](https://github.com/user-attachments/assets/5de6aee1-fdd7-4ca9-8666-d82493498ed2)
-  </p>
-  <p>
-    
-  2. You will be redirected to the **Account Registration Page** by default.
-  
-     ![image](https://github.com/user-attachments/assets/7f9f4758-328a-4565-8f3b-67a40a836e1f)
-  </p>
-  <p>
-    
-  3. Enter any set of account credentials. For the purposes of the simulation, there will not be any input validation for the username and password input fields.
-  
-     Upon clicking **Register**, the encrypted username and password inputs will be displayed in hexadecimal form, alongside the password in plaintext form, for demonstration purposes only.
-  
-     Example:
-      
-     ![image](https://github.com/user-attachments/assets/4430af07-c3a0-462b-bcac-72e79c33594f)
-  </p>
-  <p>
+### Start the Simulation
 
-  4. Navigate to **Server Page** to receive the user's account credential inputs in plaintext form.
-
-     ![image](https://github.com/user-attachments/assets/081fdf16-b28f-4ffe-a0b3-5c2209c2f155)
-  </p>
-  <p>
-    
-  5. Navigate to **Eve's Control Page** to attempt to intercept the data transfer between the user (Account Registration Page) and the server, and display the intercepted data in plaintext form.
-
-     ![image](https://github.com/user-attachments/assets/013c24d8-7df9-4ffe-b080-832fdb11eec0)
-
-     Finally, click **Launch Poodle Attack** to simulate the actual POODLE attack on the client-server communication.
-
-     ![image](https://github.com/user-attachments/assets/f3672409-761e-4533-9389-f8f778e32c2e)
-
-     You will then be able to obtain the victim's account credentials in plaintext form.
-
-     ![image](https://github.com/user-attachments/assets/c6519d34-860b-47df-9cb5-d5675053e01e)
-
-     ![image](https://github.com/user-attachments/assets/8c630961-ea50-4468-8645-51e95279f34d)
-  </p>
-</div>
-
-## File Structure
+```bash
+streamlit run page_controller.py
 ```
-├── views                                           # Codebase
-|    ├── alice.py                                   # Source code for client browser
-│    ├── eve.py                                     # Source code for attacker browser
-│    ├── server.py                                  # Source code for web server browser
-├── page_controller.py                              # Controls the navigation between the different browsers hosted on the same localhost server                
-├── .gitignore
-├── README.md   
-└── POODLE PoC Presentation_Final.pptx              # Final presentation slide deck
+
+App launches at **[http://localhost:8501](http://localhost:8501)**.
+
+#### App Flow
+
+1. **Account Registration Page (Alice)** — enter any username/password (no validation by design). After **Register**, ciphertext is shown in hex (plus password in clear for demo clarity).
+2. **Server Page** — click **Registration Logs** to decrypt and display the plaintext (only if HMAC and padding are valid).
+3. **Eve’s Control Page** — **Intercept Message** to view captured values; then **Launch Poodle Attack** to step through the oracle and recover plaintext.
+
+---
+
+## Project Structure
+
 ```
+├── page_controller.py                # routes between Streamlit pages
+├── requirements.txt                  # Python dependencies
+└── views
+    ├── Alice.py                      # client (Alice) page
+    ├── Eve.py                        # attacker (Eve) page
+    ├── server.py                     # server page
+    └── utils
+        ├── __init__.py               # marks 'views.utils' as a package
+        └── crypto.py                 # unified crypto helpers (CBC/HMAC/oracle)
+```
+
+> **Imports**
+>
+> * `views/Alice.py` → `from views.utils.crypto import cbc_encrypt`
+> * `views/server.py` → `from views.utils.crypto import cbc_decrypt`
+> * `views/Eve.py` → `from views.utils.crypto import poodle_attack`
+
+---
+
+## Screenshots (Sample)
+
+Replace with your own if desired:
+
+* Registration page (Alice) — ciphertext display
+* Server page — decrypted credentials
+* Eve page — attack trace & recovered plaintext
+
+---
+
+## Known Limitations
+
+* The XOR “cipher” is **not** a real block cipher; it’s a transparency aid for teaching.
+* Real network stacks have more nuanced behavior; this PoC isolates the oracle signal.
+
+---
 
 ## Presentation Slides
-<div align="justify">
-  You may view our presentation slide deck <a href="/POODLE PoC Presentation_Final.pptx">here</a>, for a better theoretical understanding of the POODLE attack.
-</div>
 
-## References
-<div align="justify">
-  <p>
-    
-  - https://github.com/mpgn/poodle-PoC/tree/master
-  - https://access.redhat.com/articles/1232123
-  - https://www.geeksforgeeks.org/block-cipher-modes-of-operation/
-  - https://xilinx.github.io/Vitis_Libraries/security/2020.1/guide_L1/internals/cbc.html
-  - https://www.acunetix.com/blog/web-security-zone/what-is-poodle-attack/
-  - https://en.wikipedia.org/wiki/POODLE
-  - https://en.wikipedia.org/wiki/Transport_Layer_Security
-  - https://www.techtarget.com/whatis/definition/POODLE-attack
-  - https://www.wallarm.com/what/poodle-attack
-  - https://www.manageengine.com/key-manager/information-center/what-is-poodle-attack.html
-  - https://paddingoracle.github.io/
-  - https://www.youtube.com/watch?v=uDHo-UAM6_4 (Padding Oracle Attack Visualization)
-  - https://www.youtube.com/watch?v=F0srzSkTO5M&t=290s (POODLE attack - Padding Oracle On Downgraded Legacy Encryption (TLS Academy))
-  - https://www.youtube.com/watch?v=4EgD4PEatA8&t=483s (CS2107 Padding Oracle Attack)
-  - https://www.youtube.com/watch?v=0D7OwYp6ZEc (Cipher Block Chaining Mode - Applied Cryptography)
-  </p>
-</div>
+See **POODLE PoC Presentation_Final.pptx** in the repository root.
+
+---
+
+## References & Further Reading
+
+* [https://github.com/mpgn/poodle-PoC/](https://github.com/mpgn/poodle-PoC/)
+* [https://access.redhat.com/articles/1232123](https://access.redhat.com/articles/1232123)
+* [https://www.geeksforgeeks.org/block-cipher-modes-of-operation/](https://www.geeksforgeeks.org/block-cipher-modes-of-operation/)
+* [https://xilinx.github.io/Vitis_Libraries/security/2020.1/guide_L1/internals/cbc.html](https://xilinx.github.io/Vitis_Libraries/security/2020.1/guide_L1/internals/cbc.html)
+* [https://www.acunetix.com/blog/web-security-zone/what-is-poodle-attack/](https://www.acunetix.com/blog/web-security-zone/what-is-poodle-attack/)
+* [https://en.wikipedia.org/wiki/POODLE](https://en.wikipedia.org/wiki/POODLE)
+* [https://en.wikipedia.org/wiki/Transport_Layer_Security](https://en.wikipedia.org/wiki/Transport_Layer_Security)
+* [https://www.techtarget.com/whatis/definition/POODLE-attack](https://www.techtarget.com/whatis/definition/POODLE-attack)
+* [https://www.wallarm.com/what/poodle-attack](https://www.wallarm.com/what/poodle-attack)
+* [https://www.manageengine.com/key-manager/information-center/what-is-poodle-attack.html](https://www.manageengine.com/key-manager/information-center/what-is-poodle-attack.html)
+* [https://paddingoracle.github.io/](https://paddingoracle.github.io/)
+* [https://www.youtube.com/watch?v=uDHo-UAM6_4](https://www.youtube.com/watch?v=uDHo-UAM6_4)
+* [https://www.youtube.com/watch?v=F0srzSkTO5M&t=290s](https://www.youtube.com/watch?v=F0srzSkTO5M&t=290s)
+* [https://www.youtube.com/watch?v=4EgD4PEatA8&t=483s](https://www.youtube.com/watch?v=4EgD4PEatA8&t=483s)
+* [https://www.youtube.com/watch?v=0D7OwYp6ZEc](https://www.youtube.com/watch?v=0D7OwYp6ZEc)

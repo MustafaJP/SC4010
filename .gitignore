@@ -1,2 +1,9 @@
 # Ignore Mac system files
 .DS_store
+
+#Python cache
+__pycache__
+
+.vscode
+
+.venv
